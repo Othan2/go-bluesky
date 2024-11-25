@@ -1,4 +1,4 @@
-module github.com/karalabe/go-bluesky
+module github.com/Othan2/go-bluesky
 
 go 1.22
 
