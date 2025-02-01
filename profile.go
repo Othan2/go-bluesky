@@ -12,7 +12,6 @@ import (
 	_ "image/png"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/bluesky-social/indigo/api/bsky"
 )
@@ -29,7 +28,7 @@ const (
 
 // Profile represents a user profile on a Bluesky server.
 type Profile struct {
-	client *Client // Embedded API client to lazy-load pictures
+	client *client // Embedded API client to lazy-load pictures
 
 	Handle string // User-friendly - unstable - identifier for the user
 	DID    string // Machine friendly - stable - identifier for the user
@@ -52,7 +51,7 @@ type Profile struct {
 
 // User tracks some metadata about a user on a Bluesky server.
 type User struct {
-	client *Client // Embedded API client to lazy-load pictures
+	client *client // Embedded API client to lazy-load pictures
 
 	Handle string // User-friendly - unstable - identifier for the follower
 	DID    string // Machine friendly - stable - identifier for the follower
@@ -61,48 +60,6 @@ type User struct {
 
 	AvatarURL string      // CDN URL to the user's profile picture, empty if unset
 	Avatar    image.Image // Profile picture, nil if unset or not yet fetched
-}
-
-// FetchProfile retrieves all the metadata about a specific user.
-//
-// Supported IDs are the Bluesky handles or atproto DIDs.
-func (c *Client) FetchProfile(ctx context.Context, id string) (*Profile, error) {
-	// The API only supports the non-prefixed forms. Seems a bit wonky, but trim
-	// manually for now until it's decided whether this is a feature or a bug.
-	// https://github.com/bluesky-social/atproto/issues/989
-	if strings.HasPrefix(id, "@") {
-		id = id[1:]
-	}
-	if strings.HasPrefix(id, "at://") {
-		id = id[5:]
-	}
-	// Retrieve the remote profile
-	profile, err := bsky.ActorGetProfile(ctx, c.client, id)
-	if err != nil {
-		return nil, err
-	}
-	// Dig out the relevant fields and drop pointless pointers
-	p := &Profile{
-		client:        c,
-		Handle:        profile.Handle,
-		DID:           profile.Did,
-		FollowerCount: uint(*profile.FollowersCount),
-		FolloweeCount: uint(*profile.FollowsCount),
-		PostCount:     uint(*profile.PostsCount),
-	}
-	if profile.DisplayName != nil {
-		p.Name = *profile.DisplayName
-	}
-	if profile.Description != nil {
-		p.Bio = *profile.Description
-	}
-	if profile.Avatar != nil {
-		p.AvatarURL = *profile.Avatar
-	}
-	if profile.Banner != nil {
-		p.BannerURL = *profile.Banner
-	}
-	return p, nil
 }
 
 // String implements the stringer interface to help debug things.
@@ -367,7 +324,7 @@ func (u *User) ResolveAvatarWithLimit(ctx context.Context, bytes uint64) error {
 }
 
 // fetchImage resolves a remote image via a URL and a set byte cap.
-func fetchImage(ctx context.Context, client *Client, url string, bytes uint64) (image.Image, error) {
+func fetchImage(ctx context.Context, client *client, url string, bytes uint64) (image.Image, error) {
 	// Initiate the remote image retrieval
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
