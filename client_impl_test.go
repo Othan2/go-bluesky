@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -52,16 +51,6 @@ func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	fmt.Printf("called method: %v\n", req.URL.Path)
 	m.calledMethods[req.URL.Path] += 1
 	return m.ResponseFunc(req)
-}
-
-// getenvOrSkip fetches the value of env or returns the default if the value is not able to be read.
-func getenvOrDefault(envVar string, defaultVal string) string {
-	val, ok := os.LookupEnv(envVar)
-	if !ok {
-		fmt.Printf("%v env var not found, defaulting to '%v'\n", envVar, defaultVal)
-		return defaultVal
-	}
-	return val
 }
 
 func getAccessJwt(currentTime time.Time, expiresAt time.Time) string {
