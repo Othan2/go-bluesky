@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/api/atproto"
-	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/rs/zerolog/log"
 )
@@ -65,10 +64,6 @@ type Client interface {
 
 	// Close terminates the client, shutting down all pending tasks and background operations.
 	Close() error
-
-	// FetchProfile retrieves all the metadata about a specific user.
-	// Supported IDs are the Bluesky handles or atproto DIDs.
-	FetchProfile(ctx context.Context, id string) (*Profile, error)
 
 	// Determines whether the client is ready to start processing requests.
 	Ready() bool
@@ -451,46 +446,4 @@ func parseATProtoClaims(jwt string) (*atProtoClaims, error) {
 	}
 
 	return &claims, nil
-}
-
-// FetchProfile retrieves all the metadata about a specific user.
-//
-// Supported IDs are the Bluesky handles or atproto DIDs.
-func (c *client) FetchProfile(ctx context.Context, id string) (*Profile, error) {
-	// The API only supports the non-prefixed forms. Seems a bit wonky, but trim
-	// manually for now until it's decided whether this is a feature or a bug.
-	// https://github.com/bluesky-social/atproto/issues/989
-	if strings.HasPrefix(id, "@") {
-		id = id[1:]
-	}
-	if strings.HasPrefix(id, "at://") {
-		id = id[5:]
-	}
-	// Retrieve the remote profile
-	profile, err := bsky.ActorGetProfile(ctx, c.client, id)
-	if err != nil {
-		return nil, err
-	}
-	// Dig out the relevant fields and drop pointless pointers
-	p := &Profile{
-		client:        c,
-		Handle:        profile.Handle,
-		DID:           profile.Did,
-		FollowerCount: uint(*profile.FollowersCount),
-		FolloweeCount: uint(*profile.FollowsCount),
-		PostCount:     uint(*profile.PostsCount),
-	}
-	if profile.DisplayName != nil {
-		p.Name = *profile.DisplayName
-	}
-	if profile.Description != nil {
-		p.Bio = *profile.Description
-	}
-	if profile.Avatar != nil {
-		p.AvatarURL = *profile.Avatar
-	}
-	if profile.Banner != nil {
-		p.BannerURL = *profile.Banner
-	}
-	return p, nil
 }
