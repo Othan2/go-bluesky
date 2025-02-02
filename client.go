@@ -66,10 +66,6 @@ type Client interface {
 	// Close terminates the client, shutting down all pending tasks and background operations.
 	Close() error
 
-	// CustomCall is a wildcard method for executing atproto API calls that are not
-	// (yet?) implemented by this library.
-	CustomCall(callback func(client *xrpc.Client) error) error
-
 	// FetchProfile retrieves all the metadata about a specific user.
 	// Supported IDs are the Bluesky handles or atproto DIDs.
 	FetchProfile(ctx context.Context, id string) (*Profile, error)
@@ -455,38 +451,6 @@ func parseATProtoClaims(jwt string) (*atProtoClaims, error) {
 	}
 
 	return &claims, nil
-}
-
-// CustomCall is a wildcard method for executing atproto API calls that are not
-// (yet?) implemented by this library. The user needs to provide a callback that
-// will receive an XRPC client to do direct atproto calls through.
-//
-// Note, the caller should not hold onto the xrpc.Client. The client is a copy
-// of the internal one and will not receive JWT token updates, so it *will* be
-// a dud after the JWT expiration time passes.
-func (c *client) CustomCall(callback func(client *xrpc.Client) error) error {
-	// Refresh the JWT tokens before doing any user calls
-	c.maybeRefreshJWT()
-
-	// Create a copy of the xrpc client for power users
-	dangling := new(xrpc.Client)
-
-	c.refreshLock.RLock()
-	*dangling = *c.client
-	*dangling.Auth = *c.client.Auth
-
-	if c.client.AdminToken != nil {
-		dangling.AdminToken = new(string)
-		*dangling.AdminToken = *c.client.AdminToken
-	}
-	if c.client.UserAgent != nil {
-		dangling.UserAgent = new(string)
-		*dangling.UserAgent = *c.client.UserAgent
-	}
-	c.refreshLock.RUnlock()
-
-	// Run the user's callback against the copy of the authorized client
-	return callback(dangling)
 }
 
 // FetchProfile retrieves all the metadata about a specific user.
