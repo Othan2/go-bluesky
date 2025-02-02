@@ -152,6 +152,7 @@ func TestJWTNoopRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create mock client: %v", err)
 	}
+	assert.True(t, c.Ready())
 
 	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.describeServer"], 1)
 	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.createSession"], 1)
@@ -163,6 +164,8 @@ func TestJWTNoopRefresh(t *testing.T) {
 	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.refreshSession"], 0)
 
 	c.Close()
+
+	assert.False(t, c.Ready())
 }
 
 // Tests that the JWT token can be refreshed async if the expiration time becomes
@@ -174,7 +177,6 @@ func TestJWTAsyncRefresh(t *testing.T) {
 	originalAccessJWT := getAccessJwt(now, now.Add(10*time.Minute))
 	originalRefreshJWT := getRefreshJwt(now, now.Add(72*time.Hour))
 
-	now = clock.Now()
 	postRefreshAccessJWT := getAccessJwt(now, now.Add(24*time.Hour))
 	postRefreshRefreshJWT := getRefreshJwt(now, now.Add(72*time.Hour))
 
@@ -216,6 +218,7 @@ func TestJWTAsyncRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create mock client: %v", err)
 	}
+	assert.True(t, c.Ready())
 
 	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.describeServer"], 1)
 	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.createSession"], 1)
@@ -230,6 +233,7 @@ func TestJWTAsyncRefresh(t *testing.T) {
 	assert.Greater(t, mockTransport.calledMethods["/xrpc/com.atproto.server.refreshSession"], 0)
 
 	c.Close()
+	assert.False(t, c.Ready())
 }
 
 // Tests that the JWT token will be refreshed synchronously if the expiration time becomes
@@ -241,7 +245,6 @@ func TestJWTSyncRefresh(t *testing.T) {
 	originalAccessJWT := getAccessJwt(now, now.Add(10*time.Minute))
 	originalRefreshJWT := getRefreshJwt(now, now.Add(72*time.Hour))
 
-	now = clock.Now()
 	postRefreshAccessJWT := getAccessJwt(now, now.Add(24*time.Hour))
 	postRefreshRefreshJWT := getRefreshJwt(now, now.Add(72*time.Hour))
 
@@ -283,6 +286,7 @@ func TestJWTSyncRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create mock client: %v", err)
 	}
+	assert.True(t, c.Ready())
 
 	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.describeServer"], 1)
 	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.createSession"], 1)
@@ -290,124 +294,71 @@ func TestJWTSyncRefresh(t *testing.T) {
 
 	// JWT should be sync refreshed given that the access token will have one minute left of its
 	// its original 10 minutes.
-	// The test gets hung trying to shut down the refresher if we add 9 minutes but works if we add 6...
-	// Also doesn't call refresh if we advance by 9 minutes for whatever reason.
 	clock.time = clock.time.Add(9 * time.Minute)
 	time.Sleep(100 * time.Millisecond)
 	assert.Greater(t, mockTransport.calledMethods["/xrpc/com.atproto.server.refreshSession"], 0)
 
-	// time.Sleep(500 * time.Millisecond)
 	c.Close()
-
-	// TODO add coverage to ensure we're exercising both the sync and async refresh paths
+	assert.False(t, c.Ready())
 }
 
-// // Tests that if even the JWT refresh token got expired, the refresher errors
-// // out synchronously.
-// func TestJWTExpiredRefresh(t *testing.T) {
-// 	client, err := makeTestClientWithLogin(t)
-// 	client.jwtCurrentExpire = time.Time{}
-// 	client.jwtRefreshExpire = time.Time{}
+// Tests that if even the JWT refresh token got expired, the refresher errors
+// out synchronously.
+func TestJWTExpiredRefresh(t *testing.T) {
+	var clock = &mockClock{time: time.Now()}
 
-// 	if err := client.maybeRefreshJWT(); !errors.Is(err, ErrSessionExpired) {
-// 		t.Fatalf("expired session error mismatch: have %v, want %v", err, ErrSessionExpired)
-// 	}
-// }
+	now := clock.Now()
+	originalAccessJWT := getAccessJwt(now, now.Add(-10*time.Minute))
+	originalRefreshJWT := getRefreshJwt(now, now.Add(-2*time.Minute))
 
-// Example of using the mock client
-// func TestWithMockResponses(t *testing.T) {
-// 	// Create future timestamps for JWT expiration
-// 	now := time.Now()
-// 	accessExpires := now.Add(6 * time.Minute) // Access token expires in 2 minutes.
-// 	refreshExpires := now.Add(72 * time.Hour) // Refresh token expires in 72 hours
+	mockTransport := NewMockRoundTripper(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.Path {
+		case "/xrpc/com.atproto.server.describeServer":
+			return &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(strings.NewReader(`{"availableUserDomains":["bsky.social"]}`)),
+			}, nil
+		case "/xrpc/com.atproto.server.createSession":
+			return &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(strings.NewReader(getCreateSessionResponse(originalAccessJWT, originalRefreshJWT))),
+			}, nil
+		case "/xrpc/com.atproto.server.refreshSession":
+			return &http.Response{
+				StatusCode: 403,
+				Body:       io.NopCloser(strings.NewReader(`{"error": "unauthorized"}`)),
+			}, nil
+		default:
+			return &http.Response{
+				StatusCode: 404,
+				Body:       io.NopCloser(strings.NewReader(`{"error": "not found"}`)),
+			}, nil
+		}
+	})
 
-// 	// Create JWT claims
-// 	accessClaims := atProtoClaims{
-// 		Scope:     "com.atproto.appPass",
-// 		Sub:       "did:plc:test",
-// 		IssuedAt:  now.Unix(),
-// 		ExpiresAt: accessExpires.Unix(),
-// 		Audience:  "bsky.social",
-// 	}
-// 	refreshClaims := atProtoClaims{
-// 		Scope:     "com.atproto.refresh",
-// 		Sub:       "did:plc:test",
-// 		IssuedAt:  now.Unix(),
-// 		ExpiresAt: refreshExpires.Unix(),
-// 		Audience:  "bsky.social",
-// 	}
+	c, err := NewClient(context.Background(), ServerBskySocial, "testHandle", "testAppKey",
+		withClock(clock),
+		withJwtRefresherSleepFor(50*time.Millisecond),
+		withXrpcClient(&xrpc.Client{
+			Client: &http.Client{
+				Transport: mockTransport,
+			},
+			Host: ServerBskySocial,
+		}))
 
-// 	// JWT claims are encoded as base64
-// 	accessJSON, _ := json.Marshal(accessClaims)
-// 	refreshJSON, _ := json.Marshal(refreshClaims)
-// 	accessJWT := "header." + base64.RawURLEncoding.EncodeToString(accessJSON) + ".signature"
-// 	refreshJWT := "header." + base64.RawURLEncoding.EncodeToString(refreshJSON) + ".signature"
+	if err != nil {
+		t.Fatalf("failed to create mock client: %v", err)
+	}
 
-// 	// Mock response for createSession
-// 	createSessionResponse := fmt.Sprintf(`{
-// 		"accessJwt": "%s",
-// 		"refreshJwt": "%s",
-// 		"handle": "test.bsky.social",
-// 		"did": "did:plc:test"
-// 	}`, accessJWT, refreshJWT)
+	assert.True(t, c.Ready())
 
-// 	// TODO: might need to update this to set the refresh JWT's timestamp arbitrarily
-// 	// Mock response for refreshSession.
-// 	refreshSessionResponse := fmt.Sprintf(`{
-// 		"accessJwt": "%s",
-// 		"refreshJwt": "%s",
-// 		"handle": "test.bsky.social",
-// 		"did": "did:plc:test"
-// 	}`, accessJWT, refreshJWT)
+	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.describeServer"], 1)
+	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.createSession"], 1)
+	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.refreshSession"], 0)
 
-// 	var clock = &mockClock{time: time.Now()}
+	time.Sleep(100 * time.Millisecond)
 
-// 	mockTransport := NewMockRoundTripper(func(req *http.Request) (*http.Response, error) {
-// 		// Return different responses based on the request path
-// 		switch req.URL.Path {
-// 		case "/xrpc/com.atproto.server.describeServer":
-// 			return &http.Response{
-// 				StatusCode: 200,
-// 				Body:       io.NopCloser(strings.NewReader(`{"availableUserDomains":["bsky.social"]}`)),
-// 			}, nil
-// 		case "/xrpc/com.atproto.server.createSession":
-// 			return &http.Response{
-// 				StatusCode: 200,
-// 				Body:       io.NopCloser(strings.NewReader(createSessionResponse)),
-// 			}, nil
-// 		case "/xrpc/com.atproto.server.refreshSession":
-// 			return &http.Response{
-// 				StatusCode: 200,
-// 				Body:       io.NopCloser(strings.NewReader(refreshSessionResponse)),
-// 			}, nil
-// 		default:
-// 			return &http.Response{
-// 				StatusCode: 404,
-// 				Body:       io.NopCloser(strings.NewReader(`{"error": "not found"}`)),
-// 			}, nil
-// 		}
-// 	})
+	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.refreshSession"], 0)
 
-// 	_, err := NewClient(context.Background(), ServerBskySocial, "testHandle", "testAppKey",
-// 		withClock(clock),
-// 		withRefresherPause(10*time.Millisecond),
-// 		withXrpcClient(&xrpc.Client{
-// 			Client: &http.Client{
-// 		t.Fatalf("failed to create mock client: %v", err)
-// 	}
-
-// 	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.describeServer"], 1)
-// 	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.createSession"], 1)
-// 	assert.Equal(t, mockTransport.calledMethods["/xrpc/com.atproto.server.refreshSession"], 0)
-
-// 	// Advance our mocked clock and wait for a bit for the refresh hook to trigger an async refresh.
-// 	clock.time.Add(10 * time.Minute)
-// 	time.Sleep(100 * time.Millisecond)
-// 	assert.Greater(t, mockTransport.calledMethods["/xrpc/com.atproto.server.refreshSession"].Load(), int64(0))
-
-// 	// verify that JWT was refreshed async
-// 	// how do I get the refresh JWT?
-// 	// ensure that the xrpc client is called.
-
-// 	// verify that JWT was refreshed sync?
-// }
+	assert.False(t, c.Ready())
+}

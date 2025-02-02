@@ -73,6 +73,9 @@ type Client interface {
 	// FetchProfile retrieves all the metadata about a specific user.
 	// Supported IDs are the Bluesky handles or atproto DIDs.
 	FetchProfile(ctx context.Context, id string) (*Profile, error)
+
+	// Determines whether the client is ready to start processing requests.
+	Ready() bool
 }
 
 // TODO: I'd like to do some file level prohibition on helpers from the time package as they
@@ -95,6 +98,7 @@ type client struct {
 	client *xrpc.Client // Underlying XRPC transport connected to the API
 	clock  clockInterface
 
+	ready            bool               // Whether the client is ready to start commiunicating with bluesky.
 	refreshLock      sync.RWMutex       // Lock protecting the following JWT auth fields
 	accessJwtExpire  time.Time          // Expiration time for the current access JWT token
 	refreshJwtExpire time.Time          // Expiration time for the refresh JWT token
@@ -227,6 +231,7 @@ func newClientInternal(ctx context.Context, handle string, appkey string, params
 	c := &client{
 		client: params.xrpcClient,
 		clock:  params.clock,
+		ready:  false,
 	}
 	params.xrpcClient.Auth = &xrpc.AuthInfo{
 		AccessJwt:  sess.AccessJwt,
@@ -241,26 +246,37 @@ func newClientInternal(ctx context.Context, handle string, appkey string, params
 	c.jwtRefresherStop = make(chan chan struct{})
 	go c.refresher(params.refresherPause)
 
+	c.ready = true
 	return c, nil
+}
+
+func (c *client) Ready() bool {
+	return c.ready
 }
 
 // Close terminates the client, shutting down all pending tasks and background
 // operations.
 func (c *client) Close() error {
 	// TODO: is there anything I need to add here? Closing xRPC client, etc...
+	// any potential resource leaks? obv short term because go is GCed
 	log.Info().Msg("Shutting down client...")
+
+	if !c.ready {
+		log.Info().Msg("Client not ready when shutting down.")
+	}
+
 	// If the periodical JWT refresher is running, tear it down
 	if c.jwtRefresherStop != nil {
-		log.Info().Msg("found a running JWT refresher.")
+		// This path is particularly brittle and prone to the refresher not stopping.
+		log.Info().Msg("Found a running JWT refresher.")
 		stopc := make(chan struct{})
-		log.Info().Msg("here 1")
 		c.jwtRefresherStop <- stopc
-		log.Info().Msg("here 2")
 		<-stopc
-		log.Info().Msg("here 3")
 
 		c.jwtRefresherStop = nil
 	}
+
+	c.ready = false
 	return nil
 }
 
@@ -269,13 +285,20 @@ func (c *client) Close() error {
 func (c *client) refresher(pause time.Duration) {
 	for {
 		// Attempt to refresh the JWT token
-		c.maybeRefreshJWT()
+		// do we hang if mayberefreshjwt returns an error here?
+		err := c.maybeRefreshJWT()
+
+		if err == ErrSessionExpired {
+			log.Err(err).Msg("Shutting down refresher. Create a new client to continue sending requests.")
+			return
+		}
 
 		// Wait until some time passes or the client is shutting down
 		select {
 		// TODO check out bluesky's refresh session limits. Probably want to coordinate with that.
 		case <-time.After(pause):
 		case stopc := <-c.jwtRefresherStop:
+			log.Info().Msg("Stopping refresher.")
 			stopc <- struct{}{}
 			log.Info().Msg("Stopped refresher.")
 			return
@@ -291,10 +314,18 @@ func (c *client) maybeRefreshJWT() error {
 	log.Info().Msg("Checking JWT for refresh.")
 
 	var (
-		now              = c.clock.Now()
-		needSyncRefresh  = c.accessJwtExpire.Sub(now) < jwtSyncRefreshThreshold
-		needAsyncRefresh = c.accessJwtExpire.Sub(now) < jwtAsyncRefreshThreshold
+		now               = c.clock.Now()
+		invalidRefreshJwt = c.refreshJwtExpire.Before(c.clock.Now())
+		needSyncRefresh   = c.accessJwtExpire.Sub(now) < jwtSyncRefreshThreshold
+		needAsyncRefresh  = c.accessJwtExpire.Sub(now) < jwtAsyncRefreshThreshold
 	)
+
+	if invalidRefreshJwt {
+		// we shouldn't even attempt to refresh the JWT if our refresh token is not valid
+		log.Err(ErrSessionExpired).Msg("Refresh JWT expiration in the past.")
+		c.ready = false
+		return ErrSessionExpired
+	}
 
 	if needSyncRefresh {
 		log.Info().Msg("Access JWT expires very soon, refreshing synchronously.")
@@ -349,6 +380,8 @@ func (c *client) refreshJWT() error {
 	newClient.Auth.AccessJwt = newClient.Auth.RefreshJwt
 	sess, err := atproto.ServerRefreshSession(context.Background(), newClient)
 	if err != nil {
+		// err might be transient, don't close immediately.
+		// TODO: Do I need to switch on error type to determine whether to close?
 		return err
 	}
 
