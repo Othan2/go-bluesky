@@ -1,3 +1,5 @@
+# WIP
+
 # Bluesky API client from Go
 
 [![API Reference](
@@ -26,28 +28,28 @@ import "errors"
 import "github.com/karalabe/go-bluesky"
 
 var (
-	blueskyHandle = "example.com"
-	blueskyAppkey = "1234-5678-9abc-def0"
+ blueskyHandle = "example.com"
+ blueskyAppkey = "1234-5678-9abc-def0"
 )
 
 func main() {
-	ctx := context.Background()
+ ctx := context.Background()
 
-	client, err := bluesky.Dial(ctx, bluesky.ServerBskySocial)
-	if err != nil {
-		panic(err)
-	}
-	defer client.Close()
+ client, err := bluesky.Dial(ctx, bluesky.ServerBskySocial)
+ if err != nil {
+  panic(err)
+ }
+ defer client.Close()
 
-	err = client.Login(ctx, blueskyHandle, blueskyAppkey)
-	switch {
-		case errors.Is(err, bluesky.ErrMasterCredentials):
-			panic("You're not allowed to use your full-access credentials, please create an appkey")
-		case errors.Is(err, bluesky.ErrLoginUnauthorized):
-			panic("Username of application password seems incorrect, please double check")
-		case err != nil:
-			panic("Something else went wrong, please look at the returned error")
-	}
+ err = client.Login(ctx, blueskyHandle, blueskyAppkey)
+ switch {
+  case errors.Is(err, bluesky.ErrMasterCredentials):
+   panic("You're not allowed to use your full-access credentials, please create an appkey")
+  case errors.Is(err, bluesky.ErrLoginUnauthorized):
+   panic("Username of application password seems incorrect, please double check")
+  case err != nil:
+   panic("Something else went wrong, please look at the returned error")
+ }
 }
 ```
 
@@ -55,7 +57,7 @@ Of course, most of the time you won't care about the errors broken down like tha
 and failing is probably enough in general, the introspection is meant for strange power uses.
 
 The above code will create a client authenticated against the given Bluesky server. The client will
-automatically refresh the authorization token internally when it closes in on expiration. The auth 
+automatically refresh the authorization token internally when it closes in on expiration. The auth
 will be attempted to be refreshed async without blocking API calls if there's enough time left, or
 by blocking if it would be cutting it too close to expiration (or already expired).
 
@@ -67,7 +69,7 @@ some basic metadata about the user.
 ```go
 profile, err := client.FetchProfile(ctx, "karalabe.bsky.social")
 if err != nil {
-	panic(err)
+ panic(err)
 }
 fmt.Println("Name:", profile.Name)
 fmt.Println("  - Followers:", profile.FollowerCount)
@@ -81,12 +83,12 @@ can also be retrieved lazily into `image.Image` fields.
 
 ```go
 if err := profile.ResolveAvatar(ctx); err != nil {
-	panic(err)
+ panic(err)
 }
 fmt.Println("Avatar size:", profile.Avatar.Bounds())
 
 if err := profile.ResolveBanner(ctx); err != nil {
-	panic(err)
+ panic(err)
 }
 fmt.Println("Banner size:", profile.Banner.Bounds())
 ```
@@ -100,10 +102,10 @@ both be retrieved lazily after fetching the profile.
 ```go
 fmt.Println("User followed by:")
 if err := profile.ResolveFollowers(ctx); err != nil {
-	panic(err)
+ panic(err)
 }
 for _, follower := range profile.Followers {
-	fmt.Println("  -", follower)
+ fmt.Println("  -", follower)
 }
 
 fmt.Println("User follows:")
@@ -111,7 +113,7 @@ if err := profile.ResolveFollowees(ctx); err != nil {
     panic(err)
 }
 for _, followee := range profile.Followees {
-	fmt.Println("  -", followee)
+ fmt.Println("  -", followee)
 }
 ```
 
@@ -124,19 +126,19 @@ returned as a stream as they are crawled!
 fmt.Println("User followed by:")
 followerc, errc := profile.StreamFollowers(ctx)
 for follower := range followerc { // Pull the users from the channel as they arrive
-	fmt.Println("  -", follower)
+ fmt.Println("  -", follower)
 }
 if err := <-errc; err != nil {
-	panic(err)
+ panic(err)
 }
 
 fmt.Println("User follows:")
 followeec, errc := profile.StreamFollowees(ctx)
 for followee := range followeec { // Pull the users from the channel as they arrive
-	fmt.Println("  -", followee)
+ fmt.Println("  -", followee)
 }
 if err := <-errc; err != nil {
-	panic(err)
+ panic(err)
 }
 ```
 
@@ -156,8 +158,8 @@ user can do arbitrary atproto calls with it.
 
 ```go
 client.CustomCall(func(api *xrpc.Client) error {
-	_, err := atproto.ServerGetSession(context.Background(), api)
-	return err
+ _, err := atproto.ServerGetSession(context.Background(), api)
+ return err
 })
 ```
 
@@ -177,11 +179,11 @@ To run the tests, set the `GOBLUESKY_TEST_HANDLE`, `GOBLUESKY_TEST_PASSWD` and `
 env vars and run the tests via the normal Go workflow.
 
 ```sh
-$ export GOBLUESKY_TEST_HANDLE=example.com
-$ export GOBLUESKY_TEST_PASSWD=my-pass-phrase
-$ export GOBLUESKY_TEST_APPKEY=1234-5678-9abc-def0
+export GOBLUESKY_TEST_HANDLE=example.com
+export GOBLUESKY_TEST_PASSWD=my-pass-phrase
+export GOBLUESKY_TEST_APPKEY=1234-5678-9abc-def0
 
-$ go test -v
+go test -v
 ```
 
 ## License
