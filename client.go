@@ -7,6 +7,8 @@ package bluesky
 import (
 	"errors"
 	"time"
+
+	"github.com/bluesky-social/indigo/api/bsky"
 )
 
 var (
@@ -58,7 +60,7 @@ type Client interface {
 	Ready() bool
 
 	// Searches bluesky for a phrase.
-	Search(phrase string) (SearchResult, error)
+	Search(phrase string) (*bsky.FeedSearchPosts_Output, error)
 }
 
 type SearchResult struct {

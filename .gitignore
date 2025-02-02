@@ -1,4 +1,6 @@
+# development utils
 .env
+dev_scripts/
 
 # ide:
 .vscode/
