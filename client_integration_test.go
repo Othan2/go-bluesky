@@ -40,15 +40,13 @@ func TestBskySocialIntegration(t *testing.T) {
 		t.Error(err)
 	}
 
-	out, err := realClient.Search("Peterman")
+	searchReq := SearchPostsRequest{}
+	searchReq.Q = "peterman"
+	out, err := realClient.SearchPosts(&searchReq)
 
 	if err != nil {
 		t.Fatalf("dead")
 	}
 
 	log.Info().Msgf("Num posts: %v", len(out.Posts))
-	for _, post := range out.Posts {
-		log.Info().Msgf("%v", *post.LikeCount)
-
-	}
 }

@@ -7,8 +7,6 @@ package bluesky
 import (
 	"errors"
 	"time"
-
-	"github.com/bluesky-social/indigo/api/bsky"
 )
 
 var (
@@ -59,10 +57,29 @@ type Client interface {
 	// Determines whether the client is ready to start processing requests.
 	Ready() bool
 
-	// Searches bluesky for a phrase.
-	Search(phrase string) (*bsky.FeedSearchPosts_Output, error)
+	// Searches bluesky for posts.
+	SearchPosts(request *SearchPostsRequest) (*SearchPostsResponse, error)
 }
 
-type SearchResult struct {
-	asdf string
+type SearchPostsResponse struct {
+	Posts  []*Post
+	Cursor string // TODO: int?
+}
+
+type SearchPostsRequest struct {
+	Author   string // at-identifier, format:
+	Cursor   string
+	Domain   string
+	Lang     string
+	Limit    int
+	Mentions string // at-identifier, format:
+	Q        string
+	Since    time.Time
+	Sort     string // [top, latest]
+	Tag      []string
+	Until    time.Time
+	Url      string
+}
+
+type Post struct {
 }
