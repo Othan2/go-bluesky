@@ -12,6 +12,7 @@ import (
 	_ "image/png"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/bluesky-social/indigo/api/bsky"
 )
@@ -343,4 +344,22 @@ func fetchImage(ctx context.Context, client *client, url string, bytes uint64) (
 	}
 	img, _, err := image.Decode(in)
 	return img, err
+}
+
+// maybeEscape checks if the provided string needs escaping/quoting, and calls
+// strconv.Quote if needed. The goal is to prevent malicious user input from
+// potentially hijacking the user console.
+func maybeEscape(s string) string {
+	quote := false
+	for _, r := range s {
+		// We quote everything below <space> (0x20) and above~ (0x7E)
+		if r < ' ' || r > '~' {
+			quote = true
+			break
+		}
+	}
+	if !quote {
+		return s
+	}
+	return strconv.Quote(s)
 }
