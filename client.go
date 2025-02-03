@@ -7,6 +7,8 @@ package bluesky
 import (
 	"errors"
 	"time"
+
+	"github.com/bluesky-social/indigo/api/bsky"
 )
 
 var (
@@ -58,12 +60,7 @@ type Client interface {
 	Ready() bool
 
 	// Searches bluesky for posts.
-	SearchPosts(request *SearchPostsRequest) (*SearchPostsResponse, error)
-}
-
-type SearchPostsResponse struct {
-	Posts  []*Post
-	Cursor string // TODO: int?
+	SearchPosts(request *SearchPostsRequest) (*bsky.FeedSearchPosts_Output, error)
 }
 
 type SearchPostsRequest struct {
@@ -79,7 +76,4 @@ type SearchPostsRequest struct {
 	Tag      []string
 	Until    time.Time
 	Url      string
-}
-
-type Post struct {
 }

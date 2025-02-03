@@ -7,7 +7,7 @@ import (
 	"github.com/bluesky-social/indigo/xrpc"
 )
 
-func (c *client) SearchPosts(request *SearchPostsRequest) (*SearchPostsResponse, error) {
+func (c *client) SearchPosts(request *SearchPostsRequest) (*bsky.FeedSearchPosts_Output, error) {
 	var out bsky.FeedSearchPosts_Output
 	params := map[string]interface{}{
 		"author":   request.Author,
@@ -27,8 +27,5 @@ func (c *client) SearchPosts(request *SearchPostsRequest) (*SearchPostsResponse,
 	if err := c.client.Do(context.Background(), xrpc.Query, "", "app.bsky.feed.searchPosts", params, nil, &out); err != nil {
 		return nil, err
 	}
-	// sess, err := atproto.searc(context.Background(), newClient)
-
-	response := SearchPostsResponse{}
-	return &response, nil
+	return &out, nil
 }
