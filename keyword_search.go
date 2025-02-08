@@ -22,6 +22,7 @@ func (c *client) SearchPosts(request *SearchPostsRequest) (*bsky.FeedSearchPosts
 
 	var out bsky.FeedSearchPosts_Output
 	if err := c.client.Do(context.Background(), xrpc.Query, "", "app.bsky.feed.searchPosts", params, nil, &out); err != nil {
+		log.Err(err).Msg("Failed to search.")
 		return nil, err
 	}
 	return &out, nil
