@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -119,5 +120,10 @@ func TestKeywordSearch(t *testing.T) {
 	}
 
 	assert.Equal(t, len(posts.Posts), 1)
-	assert.Equal(t, posts.Cursor, 1)
+
+	cursor, err := strconv.Atoi(*posts.Cursor)
+	if err != nil {
+		t.Errorf("cursor not a number, got: %v", posts.Cursor)
+	}
+	assert.Equal(t, cursor, 1)
 }
