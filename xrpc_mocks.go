@@ -1,10 +1,36 @@
 package bluesky
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 )
+
+func getDefaultCreateSessionResponse() string {
+	accessClaims := atProtoClaims{
+		Scope:     "com.atproto.appPass",
+		Sub:       "did:plc:test",
+		IssuedAt:  time.Now().Unix(),
+		ExpiresAt: time.Now().Add(10 * time.Hour).Unix(),
+		Audience:  "bsky.social",
+	}
+
+	// JWT claims are encoded as base64
+	accessJSON, _ := json.Marshal(accessClaims)
+
+	// reuse the same JWT for both access/refresh. It's a mock!
+	jwt := fmt.Sprint("header.", base64.RawURLEncoding.EncodeToString(accessJSON), ".signature")
+
+	return fmt.Sprintf(`{
+		"accessJwt": "%v",
+		"refreshJwt": "%v",
+		"handle": "test.bsky.social",
+		"did": "did:plc:test"
+	}`, jwt, jwt)
+}
 
 // mockRoundTripper implements http.RoundTripper for testing
 type mockRoundTripper struct {
