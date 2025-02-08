@@ -85,26 +85,18 @@ func TestJWTNoopRefresh(t *testing.T) {
 	originalAccessJWT := getAccessJwt(now, now.Add(24*time.Hour))
 	originalRefreshJWT := getRefreshJwt(now, now.Add(72*time.Hour))
 
-	mockTransport := newMockRoundTripper(func(req *http.Request) (*http.Response, error) {
-		// Return different responses based on the request path
-		switch req.URL.Path {
-		case "/xrpc/com.atproto.server.describeServer":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(`{"availableUserDomains":["bsky.social"]}`)),
-			}, nil
-		case "/xrpc/com.atproto.server.createSession":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(getCreateSessionResponse(originalAccessJWT, originalRefreshJWT))),
-			}, nil
-		default:
-			return &http.Response{
-				StatusCode: 404,
-				Body:       io.NopCloser(strings.NewReader(`{"error": "not found"}`)),
-			}, nil
-		}
-	})
+	responses := make(map[string]*http.Response)
+
+	responses["/xrpc/com.atproto.server.describeServer"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(`{"availableUserDomains":["bsky.social"]}`)),
+	}
+	responses["/xrpc/com.atproto.server.createSession"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(getCreateSessionResponse(originalAccessJWT, originalRefreshJWT))),
+	}
+
+	mockTransport := newMockRoundTripper(responses)
 
 	c, err := NewClient(context.Background(), ServerBskySocial, "testHandle", "testAppKey",
 		withClock(clock),
@@ -145,30 +137,22 @@ func TestJWTAsyncRefresh(t *testing.T) {
 	postRefreshAccessJWT := getAccessJwt(now, now.Add(24*time.Hour))
 	postRefreshRefreshJWT := getRefreshJwt(now, now.Add(72*time.Hour))
 
-	mockTransport := newMockRoundTripper(func(req *http.Request) (*http.Response, error) {
-		switch req.URL.Path {
-		case "/xrpc/com.atproto.server.describeServer":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(`{"availableUserDomains":["bsky.social"]}`)),
-			}, nil
-		case "/xrpc/com.atproto.server.createSession":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(getCreateSessionResponse(originalAccessJWT, originalRefreshJWT))),
-			}, nil
-		case "/xrpc/com.atproto.server.refreshSession":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(getRefreshSessionResponse(postRefreshAccessJWT, postRefreshRefreshJWT))),
-			}, nil
-		default:
-			return &http.Response{
-				StatusCode: 404,
-				Body:       io.NopCloser(strings.NewReader(`{"error": "not found"}`)),
-			}, nil
-		}
-	})
+	responses := make(map[string]*http.Response)
+
+	responses["/xrpc/com.atproto.server.describeServer"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(`{"availableUserDomains":["bsky.social"]}`)),
+	}
+	responses["/xrpc/com.atproto.server.createSession"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(getCreateSessionResponse(originalAccessJWT, originalRefreshJWT))),
+	}
+	responses["/xrpc/com.atproto.server.refreshSession"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(getRefreshSessionResponse(postRefreshAccessJWT, postRefreshRefreshJWT))),
+	}
+
+	mockTransport := newMockRoundTripper(responses)
 
 	c, err := NewClient(context.Background(), ServerBskySocial, "testHandle", "testAppKey",
 		withClock(clock),
@@ -213,30 +197,22 @@ func TestJWTSyncRefresh(t *testing.T) {
 	postRefreshAccessJWT := getAccessJwt(now, now.Add(24*time.Hour))
 	postRefreshRefreshJWT := getRefreshJwt(now, now.Add(72*time.Hour))
 
-	mockTransport := newMockRoundTripper(func(req *http.Request) (*http.Response, error) {
-		switch req.URL.Path {
-		case "/xrpc/com.atproto.server.describeServer":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(`{"availableUserDomains":["bsky.social"]}`)),
-			}, nil
-		case "/xrpc/com.atproto.server.createSession":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(getCreateSessionResponse(originalAccessJWT, originalRefreshJWT))),
-			}, nil
-		case "/xrpc/com.atproto.server.refreshSession":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(getRefreshSessionResponse(postRefreshAccessJWT, postRefreshRefreshJWT))),
-			}, nil
-		default:
-			return &http.Response{
-				StatusCode: 404,
-				Body:       io.NopCloser(strings.NewReader(`{"error": "not found"}`)),
-			}, nil
-		}
-	})
+	responses := make(map[string]*http.Response)
+
+	responses["/xrpc/com.atproto.server.describeServer"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(`{"availableUserDomains":["bsky.social"]}`)),
+	}
+	responses["/xrpc/com.atproto.server.createSession"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(getCreateSessionResponse(originalAccessJWT, originalRefreshJWT))),
+	}
+	responses["/xrpc/com.atproto.server.refreshSession"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(getRefreshSessionResponse(postRefreshAccessJWT, postRefreshRefreshJWT))),
+	}
+
+	mockTransport := newMockRoundTripper(responses)
 
 	c, err := NewClient(context.Background(), ServerBskySocial, "testHandle", "testAppKey",
 		withClock(clock),
@@ -276,30 +252,22 @@ func TestJWTExpiredRefresh(t *testing.T) {
 	originalAccessJWT := getAccessJwt(now, now.Add(-10*time.Minute))
 	originalRefreshJWT := getRefreshJwt(now, now.Add(-2*time.Minute))
 
-	mockTransport := newMockRoundTripper(func(req *http.Request) (*http.Response, error) {
-		switch req.URL.Path {
-		case "/xrpc/com.atproto.server.describeServer":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(`{"availableUserDomains":["bsky.social"]}`)),
-			}, nil
-		case "/xrpc/com.atproto.server.createSession":
-			return &http.Response{
-				StatusCode: 200,
-				Body:       io.NopCloser(strings.NewReader(getCreateSessionResponse(originalAccessJWT, originalRefreshJWT))),
-			}, nil
-		case "/xrpc/com.atproto.server.refreshSession":
-			return &http.Response{
-				StatusCode: 403,
-				Body:       io.NopCloser(strings.NewReader(`{"error": "unauthorized"}`)),
-			}, nil
-		default:
-			return &http.Response{
-				StatusCode: 404,
-				Body:       io.NopCloser(strings.NewReader(`{"error": "not found"}`)),
-			}, nil
-		}
-	})
+	responses := make(map[string]*http.Response)
+
+	responses["/xrpc/com.atproto.server.describeServer"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(`{"availableUserDomains":["bsky.social"]}`)),
+	}
+	responses["/xrpc/com.atproto.server.createSession"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(getCreateSessionResponse(originalAccessJWT, originalRefreshJWT))),
+	}
+	responses["/xrpc/com.atproto.server.refreshSession"] = &http.Response{
+		StatusCode: 403,
+		Body:       io.NopCloser(strings.NewReader(`{"error": "unauthorized"}`)),
+	}
+
+	mockTransport := newMockRoundTripper(responses)
 
 	c, err := NewClient(context.Background(), ServerBskySocial, "testHandle", "testAppKey",
 		withClock(clock),

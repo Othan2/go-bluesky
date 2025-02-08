@@ -4,7 +4,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -34,8 +36,8 @@ func getDefaultCreateSessionResponse() string {
 
 // mockRoundTripper implements http.RoundTripper for testing
 type mockRoundTripper struct {
-	// responseFunc allows customizing the response for each request
-	responseFunc func(req *http.Request) (*http.Response, error)
+	// map path -> response
+	responseMap map[string]*http.Response
 
 	// tracks the number of times each RPC method had been called.
 	calledMethods map[string]int
@@ -43,8 +45,24 @@ type mockRoundTripper struct {
 	calledMethodsMutex sync.Mutex
 }
 
-func newMockRoundTripper(ResponseFunc func(req *http.Request) (*http.Response, error)) *mockRoundTripper {
-	return &mockRoundTripper{responseFunc: ResponseFunc, calledMethods: make(map[string]int)}
+func newMockRoundTripper(responseMap map[string]*http.Response) *mockRoundTripper {
+	return &mockRoundTripper{responseMap: responseMap, calledMethods: make(map[string]int)}
+}
+
+// Returns a mockRoundTripper with basic session handling logic in place.
+func newDefaultMockRoundTripper() *mockRoundTripper {
+	responses := make(map[string]*http.Response)
+
+	responses["/xrpc/com.atproto.server.describeServer"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(`{"availableUserDomains":["bsky.social"]}`)),
+	}
+	responses["/xrpc/com.atproto.server.createSession"] = &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(getDefaultCreateSessionResponse())),
+	}
+
+	return newMockRoundTripper(responses)
 }
 
 func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -52,5 +70,15 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	defer m.calledMethodsMutex.Unlock()
 	fmt.Printf("called method: %v\n", req.URL.Path)
 	m.calledMethods[req.URL.Path] += 1
-	return m.responseFunc(req)
+
+	response, found := m.responseMap[req.URL.Path]
+
+	if !found {
+		return &http.Response{
+			StatusCode: 404,
+			Body:       io.NopCloser(strings.NewReader(`{"error": "not found"}`)),
+		}, nil
+	}
+
+	return response, nil
 }
