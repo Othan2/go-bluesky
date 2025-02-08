@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package bluesky
 
 import (
@@ -5,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -42,9 +46,12 @@ func TestBskySocialIntegration(t *testing.T) {
 
 	searchReq := SearchPostsRequest{}
 	searchReq.Q = "peterman"
+	searchReq.Limit = 10
 	out, err := realClient.SearchPosts(&searchReq)
 
 	if err != nil {
+		log.Err(err).Msg("failed query")
+		time.Sleep(100 * time.Millisecond)
 		t.Fatalf("dead")
 	}
 
