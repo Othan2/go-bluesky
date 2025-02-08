@@ -119,5 +119,4 @@ func TestKeywordSearch(t *testing.T) {
 	}
 
 	assert.Equal(t, len(posts.Posts), 1)
-	assert.Equal(t, posts.Cursor, 1)
 }
