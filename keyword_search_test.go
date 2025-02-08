@@ -2,6 +2,7 @@ package bluesky
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -12,16 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestKeywordSearch(t *testing.T) {
-	mockTransport := newDefaultMockRoundTripper()
-	// TODO: cid is based on a hash of post content so, I needed to insert a real post and cid below
-	// I'd like to change this to use clearly fake data.
-	mockTransport.responseMap["/xrpc/app.bsky.feed.searchPosts"] = &http.Response{
-		StatusCode: 200,
-		Body: io.NopCloser(strings.NewReader(`
-			{
-				"posts": [
-					{
+const postStr = `{
 					"uri": "at://did:plc:7exnp2zmophaapytowdi6fa2/app.bsky.feed.post/3lhopfw2xq32c",
 					"cid": "bafyreic27io7r2mt3fng5nco7xrulxpfe63sto5urr7e6sfjrtwsm7tjke",
 					"author": {
@@ -91,11 +83,22 @@ func TestKeywordSearch(t *testing.T) {
 						"embeddingDisabled": false
 					},
 					"labels": []
-					}
+				}`
+
+func TestKeywordSearch(t *testing.T) {
+	mockTransport := newDefaultMockRoundTripper()
+	// TODO: cid is based on a hash of post content so, I needed to insert a real post and cid below
+	// I'd like to change this to use clearly fake data.
+
+	// CIDs are produced by github.com/ipfs/go-cid
+	mockTransport.responseMap["/xrpc/app.bsky.feed.searchPosts"] = &http.Response{
+		StatusCode: 200,
+		Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{
+				"posts": [
+					%v, %v
 				],
 				"cursor": "1"
-			}
-  		`)),
+			}`, postStr, postStr))),
 	}
 	c, err := NewClient(context.Background(), ServerBskySocial, "testHandle", "testAppkey", withXrpcClient(&xrpc.Client{
 		Client: &http.Client{
@@ -119,7 +122,7 @@ func TestKeywordSearch(t *testing.T) {
 		t.Fatal("Failed to search posts")
 	}
 
-	assert.Equal(t, len(posts.Posts), 1)
+	assert.Equal(t, len(posts.Posts), 2)
 
 	cursor, err := strconv.Atoi(*posts.Cursor)
 	if err != nil {
