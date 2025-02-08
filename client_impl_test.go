@@ -12,7 +12,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -28,29 +27,6 @@ type mockClock struct {
 
 func (c *mockClock) Now() time.Time {
 	return c.time
-}
-
-// MockRoundTripper implements http.RoundTripper for testing
-type MockRoundTripper struct {
-	// ResponseFunc allows customizing the response for each request
-	ResponseFunc func(req *http.Request) (*http.Response, error)
-
-	// tracks the number of times each RPC method had been called.
-	calledMethods map[string]int
-
-	calledMethodsMutex sync.Mutex
-}
-
-func NewMockRoundTripper(ResponseFunc func(req *http.Request) (*http.Response, error)) *MockRoundTripper {
-	return &MockRoundTripper{ResponseFunc: ResponseFunc, calledMethods: make(map[string]int)}
-}
-
-func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	m.calledMethodsMutex.Lock()
-	defer m.calledMethodsMutex.Unlock()
-	fmt.Printf("called method: %v\n", req.URL.Path)
-	m.calledMethods[req.URL.Path] += 1
-	return m.ResponseFunc(req)
 }
 
 func getAccessJwt(currentTime time.Time, expiresAt time.Time) string {
@@ -109,7 +85,7 @@ func TestJWTNoopRefresh(t *testing.T) {
 	originalAccessJWT := getAccessJwt(now, now.Add(24*time.Hour))
 	originalRefreshJWT := getRefreshJwt(now, now.Add(72*time.Hour))
 
-	mockTransport := NewMockRoundTripper(func(req *http.Request) (*http.Response, error) {
+	mockTransport := newMockRoundTripper(func(req *http.Request) (*http.Response, error) {
 		// Return different responses based on the request path
 		switch req.URL.Path {
 		case "/xrpc/com.atproto.server.describeServer":
@@ -169,7 +145,7 @@ func TestJWTAsyncRefresh(t *testing.T) {
 	postRefreshAccessJWT := getAccessJwt(now, now.Add(24*time.Hour))
 	postRefreshRefreshJWT := getRefreshJwt(now, now.Add(72*time.Hour))
 
-	mockTransport := NewMockRoundTripper(func(req *http.Request) (*http.Response, error) {
+	mockTransport := newMockRoundTripper(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Path {
 		case "/xrpc/com.atproto.server.describeServer":
 			return &http.Response{
@@ -237,7 +213,7 @@ func TestJWTSyncRefresh(t *testing.T) {
 	postRefreshAccessJWT := getAccessJwt(now, now.Add(24*time.Hour))
 	postRefreshRefreshJWT := getRefreshJwt(now, now.Add(72*time.Hour))
 
-	mockTransport := NewMockRoundTripper(func(req *http.Request) (*http.Response, error) {
+	mockTransport := newMockRoundTripper(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Path {
 		case "/xrpc/com.atproto.server.describeServer":
 			return &http.Response{
@@ -300,7 +276,7 @@ func TestJWTExpiredRefresh(t *testing.T) {
 	originalAccessJWT := getAccessJwt(now, now.Add(-10*time.Minute))
 	originalRefreshJWT := getRefreshJwt(now, now.Add(-2*time.Minute))
 
-	mockTransport := NewMockRoundTripper(func(req *http.Request) (*http.Response, error) {
+	mockTransport := newMockRoundTripper(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Path {
 		case "/xrpc/com.atproto.server.describeServer":
 			return &http.Response{
