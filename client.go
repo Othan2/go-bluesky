@@ -59,7 +59,7 @@ type Client interface {
 	// Determines whether the client is ready to start processing requests.
 	Ready() bool
 
-	// Searches bluesky for posts.
+	// Searches bluesky for posts. https://docs.bsky.app/docs/api/app-bsky-feed-search-posts
 	SearchPosts(request *SearchPostsRequest) (*bsky.FeedSearchPosts_Output, error)
 }
 
