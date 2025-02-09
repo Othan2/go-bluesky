@@ -13,15 +13,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func getenvOrDefault(envVar string, defaultVal string) string {
-	val, ok := os.LookupEnv(envVar)
-	if !ok {
-		fmt.Printf("%v env var not found, defaulting to '%v'\n", envVar, defaultVal)
-		return defaultVal
-	}
-	return val
-}
-
 func getEnvOrSkip(t *testing.T, envVar string) string {
 	val, ok := os.LookupEnv(envVar)
 	if !ok {
