@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -13,6 +14,35 @@ import (
 	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/rs/zerolog/log"
+)
+
+var (
+	// jwtAsyncRefreshThreshold is the remaining validity time of a JWT token
+	// below which to trigger a session refresh on a background thread (i.e.
+	// the client can still be actively used during).
+	jwtAsyncRefreshThreshold = 5 * time.Minute
+
+	// jwtSyncRefreshThreshold is the remaining validity time of a JWT token
+	// below which to trigger a session refresh on a foreground thread (i.e.
+	// the client blocks new API calls until the refresh finishes).
+	jwtSyncRefreshThreshold = 2 * time.Minute
+)
+
+var (
+	// ErrLoginUnauthorized is returned from a login attempt if the credentials
+	// are rejected by the server or the local client (master credentials).
+	ErrLoginUnauthorized = errors.New("unauthorized")
+
+	// ErrMasterCredentials is returned from a login attempt if the credentials
+	// are valid on the Bluesky server, but they are the user's master password.
+	// Since that is a security malpractice, this library forbids it.
+	ErrMasterCredentials = errors.New("Master credentials used")
+
+	// ErrSessionExpired is returned from any API call if the underlying session
+	// has expired and a new login from scratch is required.
+	ErrSessionExpired = errors.New("session expired")
+
+	// TODO: add "blusky throttled me" err
 )
 
 // NewClient creates a new client authenticated to the Bluesky server with the given handle and appkey.
